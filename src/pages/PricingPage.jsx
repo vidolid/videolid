@@ -115,21 +115,7 @@ export default function PricingPage() {
 
   return (
     <div className="pricing-page">
-      {/* ── Nav ──────────────────────────────────────────────────── */}
-      <nav className="pricing-nav">
-        <Link to="/" className="pricing-nav__logo">
-          <svg width="24" height="24" viewBox="0 0 52 52" fill="currentColor">
-            <path d="M21 33.171L33.397 26L21 18.829V33.171ZM37 13H15C12.243 13 10 15.243 10 18V34C10 36.757 12.243 39 15 39H37C39.757 39 42 36.757 42 34V18C42 15.243 39.757 13 37 13Z"/>
-          </svg>
-          Videolid
-        </Link>
-        <div className="pricing-nav__actions">
-          <Link to="/login"  className="pricing-nav__link">Log in</Link>
-          <Link to="/signup" className="pricing-nav__cta">Get started free</Link>
-        </div>
-      </nav>
-
-      {/* ── Hero ─────────────────────────────────────────────────── */}
+    
       <header className="pricing-hero">
         <div className="pricing-hero__eyebrow">Pricing</div>
         <h1 className="pricing-hero__title">
