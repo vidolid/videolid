@@ -1,0 +1,32 @@
+name = "videolid-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ── R2 Bucket (file storage) ──────────────────────────────────────────────────
+# Run: npx wrangler r2 bucket create videolid-files
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "videolid-files"
+
+# ── KV Namespace (job status) ─────────────────────────────────────────────────
+# Run: npx wrangler kv:namespace create "JOBS"
+# Then paste the returned id below
+[[kv_namespaces]]
+binding = "JOBS"
+id = "PASTE_YOUR_KV_ID_HERE"
+
+# ── Environment variables (non-secret) ───────────────────────────────────────
+[vars]
+ALLOWED_ORIGIN = "https://your-frontend.com"
+MAX_FILE_MB    = "500"
+
+# ── Secrets (set via CLI, never in this file) ─────────────────────────────────
+# npx wrangler secret put AI_API_KEY
+# npx wrangler secret put FFMPEG_API_URL
+
+# ── Routes ───────────────────────────────────────────────────────────────────
+# Uncomment and set your domain after deploying:
+# [[routes]]
+# pattern = "api.yourdomain.com/*"
+# zone_name = "yourdomain.com"
