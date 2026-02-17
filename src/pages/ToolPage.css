@@ -55,9 +55,9 @@
 body {
   font-family: var(--font-body);
   background:
-    radial-gradient(ellipse at top left, rgb(94, 121, 98) 0%, transparent 60%),
-    radial-gradient(ellipse at bottom right, rgb(117, 138, 26) 0%, transparent 60%),
-    url('/public/images/lines.png') center/cover no-repeat fixed;
+    radial-gradient(ellipse at top left, rgb(255, 255, 255) 0%, transparent 60%),
+    radial-gradient(ellipse at bottom right, rgb(173, 173, 173) 0%, transparent 60%),
+    url('/public/images/dotted.png') center/cover no-repeat fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;

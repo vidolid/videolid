@@ -46,6 +46,12 @@ const HomePage = () => {
       {/* Hero */}
       <div className="full-width-box index-title">
         <div className="container">
+             <div className="hero-wrapper">
+            <div className="title text-center" style={{ color: '#014042' }}>
+              <h1>Professional Editing, Simplified</h1>
+              <h2>Transform your ideas into stunning visuals — no technical skills required.</h2>
+            </div>
+          </div>
           <nav className="tools-lists no-select">
             <ul style={{ margin: '20px' }}>
               {[
@@ -92,12 +98,7 @@ const HomePage = () => {
             </video>
           </div>
 
-          <div className="hero-wrapper">
-            <div className="title text-center" style={{ color: '#014042' }}>
-              <h1>Professional Editing, Simplified</h1>
-              <h2>Transform your ideas into stunning visuals — no technical skills required.</h2>
-            </div>
-          </div>
+         
         </div>
       </div>
 
@@ -108,45 +109,7 @@ const HomePage = () => {
       <InfoSections sections={informationSections} />
 
       {/* Tools Gallery */}
-      <div className="full-width-box all-tools-section">
-        <div className="pageToolsHero">
-          <h1 className="pageToolsHero__title">Videolid Tools</h1>
-          <h2 className="pageToolsHero__subtitle">Easy-to-use online tools for creating media content</h2>
-          <div className="pageToolsHero__searchInput">
-            <div className="pageToolsSearchInput">
-              <input
-                className="pageToolsSearchInput__input"
-                type="search"
-                placeholder="Search tools"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="pageToolsGalleryLayout">
-          {filteredTools.map(tool => (
-            <Link
-              key={tool.id}
-              to={tool.href}
-              className="pageToolsGalleryLink"
-            >
-              <span className="pageToolsGalleryLink__image">
-                <div className="pageToolsGalleryLinkImage">
-                  <img
-                    className="pageToolsGalleryLinkImage__image"
-                    src={tool.image}
-                    alt={tool.title}
-                    loading="lazy"
-                  />
-                </div>
-              </span>
-              <span className="pageToolsGalleryLink__title">{tool.title}</span>
-              <span className="pageToolsGalleryLink__description">{tool.description}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
+     
 
       {/* Stats */}
       <div className="full-width-box index-stat">
