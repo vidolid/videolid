@@ -3,9 +3,13 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import Header from './components/Header';
 import ToolPage from './pages/ToolPage';
+import Hero from './components/Hero';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import PricingPage from './pages/PricingPage';
 import { features, informationSections } from './data/features';
 import { tools, searchTools } from './data/tools';
-
+import Footer from './components/Footer';
 function App() {
   const [showLoginModal, setShowLoginModal]   = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
@@ -13,14 +17,15 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app-wrapper">
-        <Header
-          onLoginClick={() => setShowLoginModal(true)}
-          onSignupClick={() => setShowSignupModal(true)}
-        />
+        <Header />
 
         <main className="app-main">
           <Routes>
             <Route path="/" element={<HomePage />} />
+            {/* Auth & Pricing — no Header/Footer chrome */}
+            <Route path="/login"   element={<LoginPage />} />
+            <Route path="/signup"  element={<SignupPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             {/* Single dynamic route handles ALL 80+ tool pages */}
             <Route path="/:toolSlug" element={<ToolPage />} />
             <Route path="*" element={<FourOhFour />} />
@@ -44,63 +49,7 @@ const HomePage = () => {
   return (
     <>
       {/* Hero */}
-      <div className="full-width-box index-title">
-        <div className="container">
-             <div className="hero-wrapper">
-            <div className="title text-center" style={{ color: '#014042' }}>
-              <h1>Professional Editing, Simplified</h1>
-              <h2>Transform your ideas into stunning visuals — no technical skills required.</h2>
-            </div>
-          </div>
-          <nav className="tools-lists no-select">
-            <ul style={{ margin: '20px' }}>
-              {[
-                ['video-editor', 'Video editor'],
-                ['add-subtitles-to-video', 'Add subtitles'],
-                ['compress-video', 'Compress'],
-                ['resize-video', 'Resize'],
-                ['cut-video', 'Cut'],
-              ].map(([slug, label]) => (
-                <li key={slug}>
-                  <Link to={`/${slug}`} className="item">
-                    <span>
-                      <i className="icon">
-                        <svg width="52px" height="52px" viewBox="0 0 52 52">
-                          <path d="M21 33.171L33.397 26L21 18.829V33.171ZM37 13H15C12.243 13 10 15.243 10 18V34C10 36.757 12.243 39 15 39H37C39.757 39 42 36.757 42 34V18C42 15.243 39.757 13 37 13ZM40 34C40 35.654 38.654 37 37 37H15C13.346 37 12 35.654 12 34V18C12 16.346 13.346 15 15 15H37C38.654 15 40 16.346 40 18V34Z" />
-                        </svg>
-                      </i>
-                      <span>{label}</span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <div className="Hero_hero__kXuIl">
-            <div className="Hero_content___6Pbs">
-              <div className="Hero_titleContainer__I5X5F">
-                <div className="Hero_title__47F_l">
-                  <h1 dir="ltr"><span>ONLINE VIDEO EDITOR</span></h1>
-                </div>
-              </div>
-              <div className="Hero_ctaContainer__LIf1r">
-                <Link className="Hero_cta__CM8UF" to="/video-editor">
-                  Edit Video &rarr;
-                </Link>
-                <Link to="/video-editor" className="Hero_sample__yZLec">
-                  or, try a sample
-                </Link>
-              </div>
-            </div>
-            <video autoPlay loop className="Hero_media__Iko0V" playsInline muted>
-              <source src="/media/hero_image_template.mp4" />
-            </video>
-          </div>
-
-         
-        </div>
-      </div>
+      <Hero />
 
       {/* Feature Cards */}
       <FeatureCardsSection features={features} />
@@ -109,7 +58,12 @@ const HomePage = () => {
       <InfoSections sections={informationSections} />
 
       {/* Tools Gallery */}
-     
+      <div className="full-width-box all-tools-section">
+        <div className="pageToolsHero">
+         
+        </div>
+       
+      </div>
 
       {/* Stats */}
       <div className="full-width-box index-stat">
@@ -176,53 +130,7 @@ const InfoSections = ({ sections }) => (
 );
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
-const Footer = () => (
-  <footer className="appFooter">
-    <div className="appFooter__copyrights">© 2025 Videolid ltd. All rights reserved</div>
-    <nav className="appFooterNavigation">
-      <ul className="appFooterNavigation__list">
-        {[['terms','Terms'],['privacy','Privacy'],['cookies-policy','Cookies'],['refund-policy','Refund']].map(([href, label]) => (
-          <li key={href} className="appFooterNavigationLink">
-            <Link to={`/${href}`} className="appFooterNavigationLink__link">{label}</Link>
-          </li>
-        ))}
-        <li className="appFooterNavigationLink">
-          <a href="https://help.videolid.com" rel="noopener" target="_blank" className="appFooterNavigationLink__link">Help</a>
-        </li>
-      </ul>
-    </nav>
-  </footer>
-);
-
-// ─── Modals ───────────────────────────────────────────────────────────────────
-const LoginModal = ({ onClose }) => (
-  <div className="modal-overlay" onClick={onClose}>
-    <div className="modal-content" onClick={e => e.stopPropagation()}>
-      <button onClick={onClose} className="close-btn">×</button>
-      <h2>Log In</h2>
-      <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginTop:'20px' }}>
-        <input className="tool-option__input" type="email" placeholder="Email" />
-        <input className="tool-option__input" type="password" placeholder="Password" />
-        <button className="tool-btn tool-btn--primary">Log In</button>
-      </div>
-    </div>
-  </div>
-);
-
-const SignupModal = ({ onClose }) => (
-  <div className="modal-overlay" onClick={onClose}>
-    <div className="modal-content" onClick={e => e.stopPropagation()}>
-      <button onClick={onClose} className="close-btn">×</button>
-      <h2>Create Account</h2>
-      <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginTop:'20px' }}>
-        <input className="tool-option__input" type="text" placeholder="Full Name" />
-        <input className="tool-option__input" type="email" placeholder="Email" />
-        <input className="tool-option__input" type="password" placeholder="Password" />
-        <button className="tool-btn tool-btn--primary">Sign Up</button>
-      </div>
-    </div>
-  </div>
-);
+<Footer/>
 
 // ─── 404 ─────────────────────────────────────────────────────────────────────
 const FourOhFour = () => (

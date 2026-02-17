@@ -1,9 +1,11 @@
 // src/components/Header.jsx
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
-const Header = ({ onLoginClick, onSignupClick }) => {
+const Header = () => {
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const navigate = useNavigate();
 
   const toolsLinks = [
     { href: '/video-editor', text: 'Video editor', special: true },
@@ -14,17 +16,19 @@ const Header = ({ onLoginClick, onSignupClick }) => {
     { href: '/screen-recorder', text: 'Screen recorder' },
     { href: '/resize-video', text: 'Resize video' },
     { href: '/gif-maker', text: 'GIF maker' },
-    { href: '/video-converter', text: 'Video Converter' }
+    { href: '/video-converter', text: 'Video Converter' },
   ];
 
   return (
     <>
       <div className="appHeader">
-        {/* Desktop Header */}
+
+        {/* ── Desktop Header ─────────────────────────────────────── */}
         <div className="appHeader__desktop">
           <header className="appHeaderDesktop">
+
             {/* Logo */}
-            <a href="/" aria-label="Main page" className="appHeaderDesktop__logo">
+            <Link to="/" aria-label="Main page" className="appHeaderDesktop__logo">
               <img
                 src="/images/videolid-logo.svg"
                 alt="Videolid Logo"
@@ -39,20 +43,21 @@ const Header = ({ onLoginClick, onSignupClick }) => {
                 height="32"
                 className="appHeaderDesktop__logoImage appHeaderDesktop__logoImage--short"
               />
-            </a>
+            </Link>
 
             {/* Navigation */}
             <div className="appHeaderDesktop__navigation">
               <nav className="appHeaderNavigation">
                 <ul className="appHeaderNavigation__list">
+
                   <li className="appHeaderNavigationLink appHeaderNavigationLink--isHiddenOnTables">
-                    <a href="/video-editor" className="appHeaderNavigationLink__link">
+                    <Link to="/video-editor" className="appHeaderNavigationLink__link">
                       <span className="appHeaderNavigationLink__text">Video editor</span>
-                    </a>
+                    </Link>
                   </li>
 
                   {/* Tools Dropdown */}
-                  <li 
+                  <li
                     className="appHeaderDropdown"
                     onMouseEnter={() => setShowToolsDropdown(true)}
                     onMouseLeave={() => setShowToolsDropdown(false)}
@@ -67,82 +72,78 @@ const Header = ({ onLoginClick, onSignupClick }) => {
                         </div>
                       </div>
                     </div>
-                    
+
                     {showToolsDropdown && (
                       <div className="appHeaderDropdown__popover">
                         <div className="appHeaderDropdown__popoverItems">
                           {toolsLinks.map((link, index) => (
-                            <div 
+                            <div
                               key={index}
                               className={link.special ? 'appHeaderDropdown__popoverVideoEditorItem' : ''}
                             >
-                              <a href={link.href} className="appHeaderDropdownLink">
+                              <Link to={link.href} className="appHeaderDropdownLink">
                                 <span className="appHeaderDropdownLink__text">{link.text}</span>
-                              </a>
+                              </Link>
                             </div>
                           ))}
                         </div>
                         <div className="appHeaderDropdown__popoverSpecialItem">
-                          <a href="/tools" className="appHeaderDropdownLink">
+                          <Link to="/tools" className="appHeaderDropdownLink">
                             <span className="appHeaderDropdownLink__text">All tools</span>
                             <span className="appHeaderDropdownLink__arrow appIcon">
-                              <svg width="8px" height="12px" viewBox="0 0 8 12" className="arrow">
+                              <svg width="8px" height="12px" viewBox="0 0 8 12">
                                 <path d="M1.5 11a.5.5 0 01-.354-.853L5.293 6 1.146 1.854a.5.5 0 01.707-.707l4.5 4.5a.5.5 0 010 .707l-4.5 4.5A.498.498 0 011.5 11z" />
                               </svg>
                             </span>
-                          </a>
+                          </Link>
                         </div>
                       </div>
                     )}
                   </li>
 
                   <li className="appHeaderNavigationLink">
-                    <a href="/resources" rel="noopener noreferrer" className="appHeaderNavigationLink__link">
+                    <Link to="/resources" className="appHeaderNavigationLink__link">
                       <span className="appHeaderNavigationLink__text">Resources</span>
-                    </a>
+                    </Link>
                   </li>
 
                   <li className="appHeaderNavigationLink">
-                    <a href="/pricing" rel="noopener noreferrer" className="appHeaderNavigationLink__link">
+                    <Link to="/pricing" className="appHeaderNavigationLink__link">
                       <span className="appHeaderNavigationLink__text">Pricing</span>
-                    </a>
+                    </Link>
                   </li>
+
                 </ul>
               </nav>
             </div>
 
-            {/* Authentication Buttons */}
+            {/* Auth Buttons → navigate to pages */}
             <div className="appHeaderDesktop__authenticationButtons">
               <div className="appHeaderAuthentication">
-                <div>
-                  <button
-                    className="appButton appButton--variantShaded"
-                    style={{ padding: '0 20px' }}
-                    onClick={onLoginClick}
-                    data-utm="header"
-                  >
-                    Log in
-                  </button>
-                </div>
-                <div>
-                  <button
-                    className="appButton appButton--variantAccent"
-                    style={{ padding: '0 20px' }}
-                    onClick={onSignupClick}
-                    data-utm="header"
-                  >
-                    Sign up
-                  </button>
-                </div>
+                <button
+                  className="appButton appButton--variantShaded"
+                  style={{ padding: '0 20px' }}
+                  onClick={() => navigate('/login')}
+                >
+                  Log in
+                </button>
+                <button
+                  className="appButton appButton--variantAccent"
+                  style={{ padding: '0 20px' }}
+                  onClick={() => navigate('/signup')}
+                >
+                  Sign up
+                </button>
               </div>
             </div>
+
           </header>
         </div>
 
-        {/* Mobile Header */}
+        {/* ── Mobile Header ──────────────────────────────────────── */}
         <div className="appHeader__mobile">
           <div className="appHeaderMobile">
-            <a href="/" className="appHeaderMobile__logo">
+            <Link to="/" className="appHeaderMobile__logo">
               <img
                 src="/assets/images/Videolid-logo-full.svg"
                 alt="Videolid Logo"
@@ -157,16 +158,16 @@ const Header = ({ onLoginClick, onSignupClick }) => {
                 height="32"
                 className="appHeaderMobile__logoImage appHeaderMobile__logoImage--short"
               />
-            </a>
+            </Link>
 
             <div className="appHeaderMobile__siteMenuButton">
-              <button 
+              <button
                 className="appHeaderMobileMenuButton"
                 onClick={() => setShowMobileMenu(true)}
                 aria-label="Open menu"
               >
                 <div className="appIcon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <path
                       fillRule="evenodd"
                       clipRule="evenodd"
@@ -178,14 +179,13 @@ const Header = ({ onLoginClick, onSignupClick }) => {
             </div>
           </div>
         </div>
+
       </div>
 
       {/* Mobile Menu Overlay */}
       {showMobileMenu && (
-        <MobileMenuOverlay 
+        <MobileMenuOverlay
           onClose={() => setShowMobileMenu(false)}
-          onLoginClick={onLoginClick}
-          onSignupClick={onSignupClick}
           toolsLinks={toolsLinks}
         />
       )}
@@ -193,10 +193,18 @@ const Header = ({ onLoginClick, onSignupClick }) => {
   );
 };
 
-const MobileMenuOverlay = ({ onClose, onLoginClick, onSignupClick, toolsLinks }) => {
+// ── Mobile Menu Overlay ───────────────────────────────────────────────────────
+const MobileMenuOverlay = ({ onClose, toolsLinks }) => {
+  const navigate = useNavigate();
+
+  const goTo = (path) => {
+    onClose();
+    navigate(path);
+  };
+
   return (
-    <div 
-      className="app-overlay app-overlay--header-mobile-navigation" 
+    <div
+      className="app-overlay app-overlay--header-mobile-navigation"
       style={{ display: 'block' }}
       onClick={onClose}
     >
@@ -204,20 +212,21 @@ const MobileMenuOverlay = ({ onClose, onLoginClick, onSignupClick, toolsLinks })
         <div className="app-modal-layout app-modal-layout--variant-seamless">
           <div className="app-modal-layout__modal" style={{ width: '100%' }}>
             <div className="app-modal app-modal--variant-seamless" style={{ height: '100%' }}>
-              <div 
-                className="app-modal__content" 
+              <div
+                className="app-modal__content"
                 style={{ height: '100%' }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="appHeaderMobileNavigation">
-                  {/* Close Button */}
+
+                  {/* Close */}
                   <div className="appHeaderMobileNavigation__closeButton">
-                    <button 
+                    <button
                       className="appHeaderMobileCloseButton"
                       onClick={onClose}
                       aria-label="Close menu"
                     >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path
                           fillRule="evenodd"
                           clipRule="evenodd"
@@ -228,14 +237,11 @@ const MobileMenuOverlay = ({ onClose, onLoginClick, onSignupClick, toolsLinks })
                     </button>
                   </div>
 
-                  {/* Auth Buttons */}
+                  {/* Auth Buttons → navigate to pages */}
                   <div className="appHeaderMobileNavigation__authenticationRegister">
                     <button
                       className="appButtonModalLogin appButtonModalLogin--variantAccent"
-                      onClick={() => {
-                        onClose();
-                        onSignupClick();
-                      }}
+                      onClick={() => goTo('/signup')}
                     >
                       Sign up
                     </button>
@@ -243,10 +249,7 @@ const MobileMenuOverlay = ({ onClose, onLoginClick, onSignupClick, toolsLinks })
                   <div className="appHeaderMobileNavigation__authenticationLogin">
                     <button
                       className="appButtonModalLogin appButtonModalLogin--variantShaded"
-                      onClick={() => {
-                        onClose();
-                        onLoginClick();
-                      }}
+                      onClick={() => goTo('/login')}
                     >
                       Log in
                     </button>
@@ -254,43 +257,49 @@ const MobileMenuOverlay = ({ onClose, onLoginClick, onSignupClick, toolsLinks })
 
                   {/* Main Links */}
                   <div className="appHeaderMobileNavigation__nonToolsLinks">
-                    <a href="/pricing" rel="noopener noreferrer" className="appHeaderMobileNavigationLink">
+                    <Link to="/pricing" className="appHeaderMobileNavigationLink" onClick={onClose}>
                       <span className="appHeaderMobileNavigationLink__text">Pricing</span>
-                    </a>
-                    <a href="/resources" rel="noopener noreferrer" className="appHeaderMobileNavigationLink">
+                    </Link>
+                    <Link to="/resources" className="appHeaderMobileNavigationLink" onClick={onClose}>
                       <span className="appHeaderMobileNavigationLink__text">Resources</span>
-                    </a>
+                    </Link>
                   </div>
 
-                  {/* Tools Section */}
+                  {/* Tools */}
                   <div className="appHeaderMobileNavigation__tools">
                     <hr className="appHeaderMobileNavigation__hr" />
                     <div className="appHeaderMobileNavigation__toolsTitle">Tools</div>
                     <div className="appHeaderMobileNavigation__toolsLinks">
                       {toolsLinks.map((link, index) => (
-                        <div 
+                        <div
                           key={index}
                           className={link.special ? 'appHeaderDropdown__popoverVideoEditorItem' : ''}
                         >
-                          <a href={link.href} className="appHeaderMobileNavigationLink">
+                          <Link
+                            to={link.href}
+                            className="appHeaderMobileNavigationLink"
+                            onClick={onClose}
+                          >
                             <span className="appHeaderMobileNavigationLink__text">{link.text}</span>
-                          </a>
+                          </Link>
                         </div>
                       ))}
 
-                      <a
-                        href="/tools"
+                      <Link
+                        to="/tools"
                         className="appHeaderMobileNavigationLink appHeaderMobileNavigationLink--isAllToolsLink"
+                        onClick={onClose}
                       >
                         <span className="appHeaderMobileNavigationLink__text">All tools</span>
                         <span className="appHeaderMobileNavigationLink__icon appIcon">
-                          <svg width="8px" height="12px" viewBox="0 0 8 12" className="arrow">
+                          <svg width="8px" height="12px" viewBox="0 0 8 12">
                             <path d="M1.5 11a.5.5 0 01-.354-.853L5.293 6 1.146 1.854a.5.5 0 01.707-.707l4.5 4.5a.5.5 0 010 .707l-4.5 4.5A.498.498 0 011.5 11z" />
                           </svg>
                         </span>
-                      </a>
+                      </Link>
                     </div>
                   </div>
+
                 </div>
               </div>
             </div>
