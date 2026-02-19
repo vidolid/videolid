@@ -14,7 +14,7 @@ bucket_name = "videolid-files"
 # Then paste the returned id below
 [[kv_namespaces]]
 binding = "JOBS"
-id = "PASTE_YOUR_KV_ID_HERE"
+id = "40ba76ff763f4d059e477edfe1af98fc"
 
 # ── Environment variables (non-secret) ───────────────────────────────────────
 [vars]
