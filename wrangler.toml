@@ -18,7 +18,7 @@ id = "PASTE_YOUR_KV_ID_HERE"
 
 # ── Environment variables (non-secret) ───────────────────────────────────────
 [vars]
-ALLOWED_ORIGIN = "https://your-frontend.com"
+ALLOWED_ORIGIN = "https://videolid.com"
 MAX_FILE_MB    = "500"
 
 # ── Secrets (set via CLI, never in this file) ─────────────────────────────────
