@@ -55,8 +55,8 @@
 body {
   font-family: var(--font-body);
   background:
-    radial-gradient(ellipse at top left, rgb(255, 255, 255) 0%, transparent 60%),
-    radial-gradient(ellipse at bottom right, rgb(173, 173, 173) 0%, transparent 60%),
+    radial-gradient(ellipse at top left, rgb(206, 250, 218) 0%, transparent 60%),
+    radial-gradient(ellipse at bottom right, rgb(165, 174, 45) 0%, transparent 60%),
     url('/public/images/dotted.png') center/cover no-repeat fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
@@ -119,7 +119,7 @@ body {
   font-family: var(--font-display);
   font-size: 1.85rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: black;
   letter-spacing: -0.02em;
   line-height: 1.15;
   margin-bottom: 6px;
@@ -152,7 +152,7 @@ body {
   background: var(--bg-surface);
   transition:
     border-color var(--transition),
-    background var(--transition),
+    background gray,
     box-shadow var(--transition);
   position: relative;
   overflow: hidden;
