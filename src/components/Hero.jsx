@@ -76,7 +76,7 @@ const Hero = () => {
                 <a
                   className="Hero_cta__CM8UF"
                   data-testid="get-started-button"
-                  href="https://www.videolid.com/studio/editor?redirect_source=%2Fvideo-editor&tooltip=editor&locale=en"
+                  href="https://www.videolid.com/video-editor"
                 >
                   Edit Video
                   <div className="Hero_icon__kGQOF">

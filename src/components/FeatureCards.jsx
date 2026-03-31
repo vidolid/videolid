@@ -16,7 +16,7 @@ const FeatureCards = () => {
       title: 'Video Trimmer',
       description: 'Quickly trim, split, and cut your content with a user-friendly editing timeline designed for frame-by-frame precision — and anyone can start for free!'
     },
-    // Add more features...
+    
   ];
 
   return (

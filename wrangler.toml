@@ -28,5 +28,5 @@ MAX_FILE_MB    = "500"
 # ── Routes ───────────────────────────────────────────────────────────────────
 # Uncomment and set your domain after deploying:
 # [[routes]]
-# pattern = "api.yourdomain.com/*"
-# zone_name = "yourdomain.com"
+pattern = "https://api.render.com/deploy/srv-d6bpjep5pdvs73eenhtg?key=k0y0VwTLdWA"
+zone_name = "videolid.com"

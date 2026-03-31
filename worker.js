@@ -16,7 +16,7 @@
  *    id = "<your-kv-id>"
  *
  *  Environment variables (set in Cloudflare dashboard):
- *    ALLOWED_ORIGIN   = https://your-frontend.com
+ *    ALLOWED_ORIGIN   = https://videolid.com
  *    MAX_FILE_MB      = 500
  *    FFMPEG_API_URL   = https://your-ffmpeg-service.com   (optional external FFmpeg)
  *    AI_API_KEY       = <your AI provider key>            (for AI tools)
@@ -316,19 +316,6 @@ async function handleDownload(fileId, env, origin) {
   return new Response(obj.body, { headers });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  PROCESSOR FUNCTIONS
-//  Each returns: { buffer: ArrayBuffer, fileName: string, contentType: string }
-//
-//  NOTE: Cloudflare Workers cannot run FFmpeg natively.
-//  Pattern used here:
-//    - Simple operations (image conversion, metadata) → done inline with Web APIs
-//    - Complex operations (video/audio processing)    → delegated to an external
-//      FFmpeg microservice (e.g. Modal, Fly.io, Render, or your own VPS)
-//      via env.FFMPEG_API_URL
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ─── Shared: call external FFmpeg service ────────────────────────────────────
 async function callFFmpeg({ env, inputKey, command, outputFileName }) {
   if (!env.FFMPEG_API_URL) {
     throw new Error(

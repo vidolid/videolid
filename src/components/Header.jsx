@@ -37,7 +37,7 @@ const Header = () => {
                 className="appHeaderDesktop__logoImage appHeaderDesktop__logoImage--full"
               />
               <img
-                src="/images/mobile-logo.png"
+                src="/images/mobile-logo.svg"
                 alt="Videolid Logo"
                 width="32"
                 height="32"

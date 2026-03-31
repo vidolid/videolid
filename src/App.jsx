@@ -70,11 +70,11 @@ const HomePage = () => {
         <div className="container">
           <div style={{ display:'flex', justifyContent:'center', gap:'80px', padding:'40px 0' }}>
             <div className="text-center">
-              <h3 style={{ fontSize:'3rem', fontWeight:900 }}>5M+</h3>
+              <h3 style={{ fontSize:'3rem', fontWeight:900 }}>500K+</h3>
               <p>Monthly users</p>
             </div>
             <div className="text-center">
-              <h3 style={{ fontSize:'3rem', fontWeight:900 }}>304M+</h3>
+              <h3 style={{ fontSize:'3rem', fontWeight:900 }}>300K+</h3>
               <p>Videos made</p>
             </div>
           </div>

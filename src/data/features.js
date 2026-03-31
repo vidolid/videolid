@@ -3,14 +3,14 @@
 export const features = [
   {
     id: 1,
-    image: '/images/video-editor.png',
+    image: '/images/add-audio-to-video.png',
     alt: 'A landscape video is resized to fit TikTok\'s portrait aspect ratio',
     title: 'Add Audio to Video',
     description: 'Improve videos with thousands of royalty-free songs and sound effects from Videolid\'s built-in music library. Mix, match, and layer tracks to craft dynamic and engaging content.'
   },
   {
     id: 2,
-    image: '/images/video-editor.png',
+    image: '/images/text-to-speech.png',
     alt: 'A video is editing using an automatically generated transcript',
     title: 'Text-based Editor',
     description: 'Save time with text-based editing. Use an auto-generated transcript to delete or trim video sections effortlessly by editing the text directly in the online Video Editor.'
@@ -24,14 +24,14 @@ export const features = [
   },
   {
     id: 4,
-    image: '/images/video-editor.png',
+    image: '/images/adjust-video.png',
     alt: 'A YouTube vlog with audio enhancement features overlaid',
     title: 'AI Audio Enhancer',
     description: 'Instantly improve your recordings with AI-powered audio enhancement. Easily remove background noise, enhance speech clarity, and minimize room echoes from one single online platform.'
   },
   {
     id: 5,
-    image: '/images/video-editor.png',
+    image: '/images/resize-video.png',
     alt: 'An image of a dog with a transparent background',
     title: 'Background Remover',
     description: 'Remove or replace video backgrounds without manual tracing, allowing you to create content without expensive green screens or traveling to filming locations'
