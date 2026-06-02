@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import toolsConfig from '../data/toolsConfig';
 import './ToolPage.css'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://your-worker.workers.dev';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://videolid-api.vidolid.workers.dev';
 
 const ToolPage = () => {
   const { toolSlug } = useParams();
@@ -482,6 +482,13 @@ const ToolsIndex = () => {
           </div>
         </div>
       ))}
+    
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-3836811743595012"
+     data-ad-slot="2404764141"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
     </div>
   );
 };
