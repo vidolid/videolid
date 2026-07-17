@@ -1,29 +1,19 @@
-/**
- * ============================================================
- *  VIDEOLID — Cloudflare Worker  (worker.js)
- *  Single file handles ALL 80+ tool endpoints
- *
- *  Deploy:
- *    npx wrangler deploy worker.js --name videolid-api
- *
- *  Bindings required in wrangler.toml:
- *    [[ r2_buckets ]]
- *    binding = "FILES"          # R2 bucket for uploads + results
- *    bucket_name = "videolid-files"
- *
- *    [[ kv_namespaces ]]
- *    binding = "JOBS"           # KV for job status tracking
- *    id = "<your-kv-id>"
- *
- *  Environment variables (set in Cloudflare dashboard):
- *    ALLOWED_ORIGIN   = https://videolid.com
- *    MAX_FILE_MB      = 500
- *    FFMPEG_API_URL   = https://your-ffmpeg-service.com   (optional external FFmpeg)
- *    AI_API_KEY       = <your AI provider key>            (for AI tools)
- * ============================================================
- */
-
-// ─── CORS helper ─────────────────────────────────────────────────────────────
+import {
+  verifyFirebaseToken,
+  requireFirebaseAuth,
+  checkAndIncrementUsage,
+  getUsage,
+  createApiKey,
+  listApiKeys,
+  revokeApiKey,
+  createCheckoutSession,
+  createPortalSession,
+  handleStripeWebhook,
+  r2Path,
+  AuthError,
+  jsonResponse,
+  errorResponse,
+} from "./firebase-worker-auth.js";
 const corsHeaders = (origin) => ({
   "Access-Control-Allow-Origin": origin || "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -137,162 +127,231 @@ const TOOL_PROCESSORS = {
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get("Origin") || "*";
-    const url = new URL(request.url);
-    const path = url.pathname;
-
+    const url    = new URL(request.url);
+    const path   = url.pathname;
+    const method = request.method;
+ 
     // Preflight
-    if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    if (method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin":  origin,
+          "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          "Access-Control-Max-Age":       "86400",
+        },
+      });
     }
-
-    // ── POST /api/process ── main job submission
-    if (request.method === "POST" && path === "/api/process") {
-      return handleProcess(request, env, origin);
+ 
+    try {
+      // ── Auth routes (no auth required) ──────────────────────────────────────
+      // Firebase handles login/signup on the frontend — no /api/auth routes needed!
+      // The Worker only needs to verify tokens, not issue them.
+ 
+      // ── Usage ────────────────────────────────────────────────────────────────
+      if (method === "GET" && path === "/api/usage") {
+        const { uid, plan } = await requireFirebaseAuth(request, env);
+        const usage = await getUsage(uid, plan, env);
+        return jsonResponse(usage, 200, origin);
+      }
+ 
+      // ── API Keys ─────────────────────────────────────────────────────────────
+      if (method === "GET" && path === "/api/keys") {
+        const { uid } = await requireFirebaseAuth(request, env);
+        const keys = await listApiKeys(uid, env);
+        return jsonResponse({ keys }, 200, origin);
+      }
+ 
+      if (method === "POST" && path === "/api/keys") {
+        const { uid, email } = await requireFirebaseAuth(request, env);
+        const { name } = await request.json().catch(() => ({}));
+        const apiKey = await createApiKey(uid, email, name, env);
+        return jsonResponse({ apiKey, message: "Save this key — it won't be shown again" }, 201, origin);
+      }
+ 
+      if (method === "DELETE" && path.startsWith("/api/keys/")) {
+        const { uid } = await requireFirebaseAuth(request, env);
+        const key = path.split("/api/keys/")[1];
+        await revokeApiKey(uid, key, env);
+        return jsonResponse({ success: true }, 200, origin);
+      }
+ 
+      // ── Billing ───────────────────────────────────────────────────────────────
+      if (method === "POST" && path === "/api/billing/checkout") {
+        const { uid, email } = await requireFirebaseAuth(request, env);
+        const { plan } = await request.json();
+        const url = await createCheckoutSession(uid, email, plan, env);
+        return jsonResponse({ url }, 200, origin);
+      }
+ 
+      if (method === "POST" && path === "/api/billing/portal") {
+        const { uid } = await requireFirebaseAuth(request, env);
+        const url = await createPortalSession(uid, env);
+        return jsonResponse({ url }, 200, origin);
+      }
+ 
+      // Stripe webhooks are unauthenticated (Stripe signs them instead)
+      if (method === "POST" && path === "/api/billing/webhook") {
+        return handleStripeWebhook(request, env, origin);
+      }
+ 
+      // ── Process (main job route) ──────────────────────────────────────────────
+      if (method === "POST" && path === "/api/process") {
+        return handleProcess(request, env, ctx, origin);
+      }
+ 
+      // ── Status & Download (unchanged from your original) ──────────────────────
+      if (method === "GET" && path.startsWith("/api/status/")) {
+        const jobId = path.split("/api/status/")[1];
+        const raw = await env.JOBS.get(jobId);
+        if (!raw) return errorResponse("Job not found", 404, origin);
+        return jsonResponse(JSON.parse(raw), 200, origin);
+      }
+ 
+      if (method === "GET" && path.startsWith("/api/download/")) {
+        const fileId = path.split("/api/download/")[1];
+        return handleDownload(fileId, env, origin);
+      }
+ 
+      if (path === "/api/health") {
+        return jsonResponse({ status: "ok" }, 200, origin);
+      }
+ 
+      return errorResponse("Not found", 404, origin);
+ 
+    } catch (err) {
+      // AuthError → 401, everything else → 500
+      const status = err instanceof AuthError ? 401 : 500;
+      return errorResponse(err.message, status, origin);
     }
-
-    // ── GET /api/status/:jobId ── poll job status
-    if (request.method === "GET" && path.startsWith("/api/status/")) {
-      const jobId = path.split("/api/status/")[1];
-      return handleStatus(jobId, env, origin);
-    }
-
-    // ── GET /api/download/:fileId ── download result
-    if (request.method === "GET" && path.startsWith("/api/download/")) {
-      const fileId = path.split("/api/download/")[1];
-      return handleDownload(fileId, env, origin);
-    }
-
-    // ── GET /api/health ── health check
-    if (path === "/api/health") {
-      return json(
-        { status: "ok", tools: Object.keys(TOOL_PROCESSORS).length },
-        200,
-        origin,
-      );
-    }
-
-    return error("Not found", 404, origin);
   },
 };
+ 
 
 // ─── Handle /api/process ─────────────────────────────────────────────────────
-async function handleProcess(request, env, origin) {
+async function handleProcess(request, env, ctx, origin) {
+  // 1. Identify the user (Firebase token OR API key OR anonymous free tier)
+  let uid  = "anonymous";
+  let plan = "free";
+ 
   try {
-    const contentType = request.headers.get("Content-Type") || "";
-    let tool, options, file, text;
-
-    // Parse multipart (file upload) or JSON (text tools)
-    if (contentType.includes("multipart/form-data")) {
-      const formData = await request.formData();
-      tool = formData.get("tool");
-      options = JSON.parse(formData.get("options") || "{}");
-      file = formData.get("file");
-
-      if (!file) return error("No file provided", 400, origin);
-      if (!tool) return error("No tool specified", 400, origin);
-
-      // Validate file size
-      const maxBytes = (parseInt(env.MAX_FILE_MB) || 500) * 1024 * 1024;
-      if (file.size > maxBytes) {
-        return error(
-          `File too large. Max ${env.MAX_FILE_MB || 500}MB`,
-          413,
-          origin,
-        );
-      }
+    const auth = await requireFirebaseAuth(request, env);
+    uid  = auth.uid;
+    plan = auth.plan;
+  } catch (e) {
+    if (e instanceof AuthError) {
+      // Allow unauthenticated requests under free limits
+      // Remove this block if you want to require login
     } else {
-      const body = await request.json();
-      tool = body.tool;
-      options = body.options || {};
-      text = body.text;
-      if (!tool) return error("No tool specified", 400, origin);
+      throw e;
     }
-
-    // Look up processor
-    const processor = TOOL_PROCESSORS[tool];
-    if (!processor) return error(`Unknown tool: ${tool}`, 400, origin);
-
-    // Generate job ID
-    const jobId = crypto.randomUUID();
-
-    // Store initial job status
-    await env.JOBS.put(
-      jobId,
-      JSON.stringify({
-        status: "processing",
-        tool,
-        createdAt: Date.now(),
-      }),
-      { expirationTtl: 3600 },
-    ); // expire after 1 hour
-
-    // Upload input file to R2
-    let inputKey = null;
-    if (file) {
-      inputKey = `inputs/${jobId}/${file.name}`;
-      const buffer = await file.arrayBuffer();
-      await env.FILES.put(inputKey, buffer, {
-        httpMetadata: { contentType: file.type },
-      });
-    }
-
-    // Run processor (non-blocking via waitUntil for long jobs)
-    const ctx_like = { waitUntil: (p) => p }; // fallback
-    const processingPromise = processor({
-      jobId,
-      tool,
-      options,
-      text,
-      inputKey,
-      fileName: file?.name || "input",
-      fileType: file?.type || "",
-      env,
-    })
-      .then(async (result) => {
-        // Store result
-        const outputKey = `outputs/${jobId}/${result.fileName}`;
-        if (result.buffer) {
-          await env.FILES.put(outputKey, result.buffer, {
-            httpMetadata: {
-              contentType: result.contentType || "application/octet-stream",
-            },
-          });
-        }
-        // Update job status to done
-        await env.JOBS.put(
-          jobId,
-          JSON.stringify({
-            status: "done",
-            tool,
-            fileId: `${jobId}/${result.fileName}`,
-            fileName: result.fileName,
-            contentType: result.contentType,
-            createdAt: Date.now(),
-          }),
-          { expirationTtl: 3600 },
-        );
-      })
-      .catch(async (err) => {
-        await env.JOBS.put(
-          jobId,
-          JSON.stringify({
-            status: "error",
-            tool,
-            error: err.message,
-            createdAt: Date.now(),
-          }),
-          { expirationTtl: 3600 },
-        );
-      });
-
-    // Don't await — let it run in background
-    // (Cloudflare will keep the worker alive if needed)
-    processingPromise.catch(() => {});
-
-    return json({ jobId, status: "processing" }, 202, origin);
-  } catch (err) {
-    return error(`Server error: ${err.message}`, 500, origin);
   }
+ 
+  // 2. Parse the request (same as your existing code)
+  const contentType = request.headers.get("Content-Type") || "";
+  let tool, options, file, text;
+ 
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+    tool    = formData.get("tool");
+    options = JSON.parse(formData.get("options") || "{}");
+    file    = formData.get("file");
+ 
+    if (!file) return errorResponse("No file provided", 400, origin);
+    if (!tool) return errorResponse("No tool specified", 400, origin);
+ 
+    // 3. Enforce plan file size limit
+    const { PLANS } = await import("./firebase-worker-auth.js");
+    const planConfig = PLANS[plan] || PLANS.free;
+    const maxBytes   = planConfig.maxFileMB * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return errorResponse(
+        `File too large. Your ${planConfig.name} plan allows up to ${planConfig.maxFileMB}MB.`,
+        413,
+        origin
+      );
+    }
+  } else {
+    const body = await request.json();
+    tool    = body.tool;
+    options = body.options || {};
+    text    = body.text;
+    if (!tool) return errorResponse("No tool specified", 400, origin);
+  }
+ 
+  // 4. Check + increment monthly usage BEFORE doing any work
+  await checkAndIncrementUsage(uid, plan, env);
+ 
+  // 5. Look up processor (your existing TOOL_PROCESSORS map)
+  const processor = TOOL_PROCESSORS[tool];
+  if (!processor) return errorResponse(`Unknown tool: ${tool}`, 400, origin);
+ 
+  // 6. Generate job ID and store initial status
+  const jobId = crypto.randomUUID();
+  await env.JOBS.put(
+    jobId,
+    JSON.stringify({ status: "processing", tool, uid, createdAt: Date.now() }),
+    { expirationTtl: 3600 }
+  );
+ 
+  // 7. Upload input to R2 — scoped under the user's UID
+  let inputKey = null;
+  if (file) {
+    // UID-scoped path: inputs/{uid}/{jobId}/filename.mp4
+    // Anonymous users get inputs/anonymous/{jobId}/filename.mp4
+    inputKey = r2Path.input(uid, jobId, file.name);
+    const buffer = await file.arrayBuffer();
+    await env.FILES.put(inputKey, buffer, {
+      httpMetadata: { contentType: file.type },
+    });
+  }
+ 
+  // 8. Run processor in background (your existing logic)
+  const processingPromise = processor({
+    jobId, tool, options, text,
+    inputKey,
+    fileName: file?.name || "input",
+    fileType: file?.type || "",
+    uid,   // ← now available in all processors if needed
+    plan,  // ← available if processors need plan-specific behaviour
+    env,
+  })
+    .then(async (result) => {
+      // UID-scoped output path
+      const outputKey = r2Path.output(uid, jobId, result.fileName);
+ 
+      if (result.buffer) {
+        await env.FILES.put(outputKey, result.buffer, {
+          httpMetadata: { contentType: result.contentType || "application/octet-stream" },
+        });
+      }
+ 
+      await env.JOBS.put(
+        jobId,
+        JSON.stringify({
+          status:      "done",
+          tool,
+          uid,
+          fileId:      `${uid}/${jobId}/${result.fileName}`,
+          fileName:    result.fileName,
+          contentType: result.contentType,
+          createdAt:   Date.now(),
+        }),
+        { expirationTtl: 3600 }
+      );
+    })
+    .catch(async (err) => {
+      await env.JOBS.put(
+        jobId,
+        JSON.stringify({ status: "error", tool, uid, error: err.message, createdAt: Date.now() }),
+        { expirationTtl: 3600 }
+      );
+    });
+ 
+  ctx.waitUntil(processingPromise); // ← fixed: uses real ctx now
+ 
+  return jsonResponse({ jobId, status: "processing" }, 202, origin);
 }
 
 // ─── Handle /api/status/:jobId ────────────────────────────────────────────────
@@ -948,8 +1007,6 @@ async function processRecorderUpload({ env, inputKey, fileName }) {
   };
 }
 
-// ─── Image processors ─────────────────────────────────────────────────────────
-
 async function processImageConverter({
   env,
   inputKey,
@@ -973,8 +1030,6 @@ async function processImageConverter({
   });
   return { buffer, fileName: outName, contentType: getMimeType(outputExt) };
 }
-
-// ─── AI processors ────────────────────────────────────────────────────────────
 
 async function callAI({ env, endpoint, body }) {
   if (!env.AI_API_KEY) throw new Error("AI_API_KEY not configured");

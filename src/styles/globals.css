@@ -130,6 +130,69 @@
     opacity: 0;
   }
 }
+.tools-lists__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: clamp(8px, 2vw, 20px);
+  margin: 20px;
+  list-style: none;
+  padding: 0;
+}
+
+.tools-lists__grid li {
+  min-width: 0; /* prevents grid blowout with long labels */
+}
+
+.tools-lists__grid .item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.tools-lists__grid .icon svg {
+  width: clamp(32px, 6vw, 52px);
+  height: clamp(32px, 6vw, 52px);
+}
+
+.tools-lists__grid .item span span:last-child {
+  font-size: clamp(11px, 2vw, 14px);
+  white-space: nowrap;
+}
+
+/* Tablet: 3 columns */
+@media (max-width: 900px) {
+  .tools-lists__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Mobile: horizontal scroll instead of squished columns */
+@media (max-width: 600px) {
+  .tools-lists__grid {
+    display: flex;
+    overflow-x: auto;
+    gap: 16px;
+    margin: 16px;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tools-lists__grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tools-lists__grid li {
+    flex: 0 0 auto;
+  }
+
+  .tools-lists__grid .item span span:last-child {
+    white-space: nowrap;
+  }
+}
 .owl-height {
   transition: height 0.5s ease-in-out;
 }
