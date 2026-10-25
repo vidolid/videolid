@@ -1,5 +1,5 @@
 import React from "react";
-
+import { Link } from "react-router-dom";
 const links = [
   { href: "/terms", text: "Terms" },
   { href: "/privacy", text: "Privacy" },
@@ -17,14 +17,13 @@ const Footer = () => (
         <ul>
           {links.map((l) => (
             <li key={l.text}>
-              <a
-                href={l.href}
-                {...(l.external
-                  ? { target: "_blank", rel: "noopener noreferrer" }
-                  : {})}
-              >
-                {l.text}
-              </a>
+              {l.external ? (
+                <a href={l.href} target="_blank" rel="noopener noreferrer">
+                  {l.text}
+                </a>
+              ) : (
+                <Link to={l.href}>{l.text}</Link>
+              )}
             </li>
           ))}
         </ul>

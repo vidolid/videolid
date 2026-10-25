@@ -1,0 +1,69 @@
+/* src/pages/Legal.css
+   Uses your existing .vl-dark / .vl-squiggle / .vl-btn styles for the hero and buttons.
+   Everything below is scoped to .vl-legal* so nothing else is affected. */
+
+.vl-legal-hero { padding-bottom: 56px; }
+.vl-legal-hero h1 { margin: 0 0 12px; }
+.vl-legal-hero__date { margin: 16px 0 0; font-size: 0.9rem; opacity: 0.75; }
+
+.vl-legal {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+
+/* Table of contents */
+.vl-legal__toc { position: sticky; top: 24px; font-size: 0.92rem; }
+.vl-legal__toc h2 { font-size: 0.95rem; margin: 0 0 12px; }
+.vl-legal__toc ol { list-style: none; margin: 0; padding: 0; border-left: 3px solid #ebebeb; }
+.vl-legal__toc a {
+  display: block;
+  padding: 6px 0 6px 14px;
+  margin-left: -3px;
+  border-left: 3px solid transparent;
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.75;
+}
+.vl-legal__toc a:hover,
+.vl-legal__toc a:focus-visible { opacity: 1; border-left-color: #18a66b; }
+
+/* Body copy */
+.vl-legal__body { max-width: 68ch; line-height: 1.7; }
+.vl-legal__body section { padding-bottom: 8px; scroll-margin-top: 24px; }
+.vl-legal__body h2 { font-size: 1.35rem; margin: 40px 0 12px; }
+.vl-legal__body section:first-child h2 { margin-top: 0; }
+.vl-legal__body p { margin: 0 0 14px; }
+.vl-legal__body ul { margin: 0 0 14px; padding-left: 22px; }
+.vl-legal__body li { margin-bottom: 6px; }
+.vl-legal__body a { color: #18a66b; text-underline-offset: 3px; }
+.vl-legal__body a:focus-visible { outline: 2px solid #18a66b; outline-offset: 2px; }
+
+.vl-legal__cta {
+  margin-top: 56px;
+  padding: 24px;
+  border-radius: 16px;
+  background: #fffbd1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.vl-legal__cta p { margin: 0; }
+
+@media (max-width: 820px) {
+  .vl-legal { grid-template-columns: 1fr; gap: 28px; padding-top: 32px; }
+  .vl-legal__toc { position: static; }
+  .vl-legal__toc ol { columns: 2; column-gap: 24px; }
+}
+@media (max-width: 480px) {
+  .vl-legal__toc ol { columns: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}

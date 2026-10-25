@@ -7,6 +7,8 @@ import {
   Link,
   useLocation,
 } from "react-router-dom";
+import Terms from "./pages/Terms";
+import Policy from "./pages/Policy";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import FeatureCards from "./components/FeatureCards";
@@ -42,7 +44,8 @@ const Shell = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/pricing" element={<PricingPage />} />
-          {/* Single dynamic route handles ALL 80+ tool pages */}
+          <Route path="/terms" element={<Terms />} />
+<Route path="/privacy" element={<Policy />} />
           <Route path="/:toolSlug" element={<ToolPage />} />
           <Route path="*" element={<FourOhFour />} />
         </Routes>
