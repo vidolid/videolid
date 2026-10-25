@@ -4,6 +4,7 @@ import { useParams, Link } from "react-router-dom";
 import { getAuth } from "firebase/auth";
 import toolsConfig from "../data/toolsConfig";
 import "./ToolPage.css";
+import "./ToolLayout.css";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE || "https://videolid-api.vidolid.workers.dev";
@@ -15,12 +16,16 @@ const ToolPage = () => {
   if (!config) return <NotFound />;
   if (config.isIndex) return <ToolsIndex />;
 
-  return config.isRecorder ? (
-    <RecorderPage config={config} toolSlug={toolSlug} />
-  ) : config.isTextInput ? (
-    <TextInputPage config={config} toolSlug={toolSlug} />
-  ) : (
-    <UploadPage config={config} toolSlug={toolSlug} />
+  return (
+    <ToolLayout key={toolSlug}>
+      {config.isRecorder ? (
+        <RecorderPage config={config} toolSlug={toolSlug} />
+      ) : config.isTextInput ? (
+        <TextInputPage config={config} toolSlug={toolSlug} />
+      ) : (
+        <UploadPage config={config} toolSlug={toolSlug} />
+      )}
+    </ToolLayout>
   );
 };
 
@@ -588,6 +593,53 @@ const AdUnit = ({ slot }) => {
       data-ad-format="auto"
       data-full-width-responsive="true"
     />
+  );
+};
+
+// ─── Tool page layout with ad slots ───────────────────────────────────────────
+// Replace these with one AdSense ad unit id per position (AdSense → Ads → By ad unit).
+const AD_SLOTS = {
+  top: "2404764141",
+  bottom: "2404764141",
+  rail: "2404764141",
+};
+
+const AdSlot = ({ position }) => (
+  <div className={`ad-slot ad-slot--${position}`}>
+    <span className="ad-slot__label">Advertisement</span>
+    <AdUnit slot={AD_SLOTS[position]} />
+  </div>
+);
+
+const useMediaQuery = (query) => {
+  const [matches, setMatches] = useState(
+    () => window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = (e) => setMatches(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+};
+
+const ToolLayout = ({ children }) => {
+  // The rail is only rendered on wide screens. Ads inside display:none containers fail to load.
+  const showRail = useMediaQuery("(min-width: 1100px)");
+  return (
+    <div className={`tool-layout${showRail ? " tool-layout--rail" : ""}`}>
+      <div className="tool-layout__main">
+        <AdSlot position="top" />
+        {children}
+        <AdSlot position="bottom" />
+      </div>
+      {showRail && (
+        <aside className="tool-layout__rail" aria-label="Sponsored">
+          <AdSlot position="rail" />
+        </aside>
+      )}
+    </div>
   );
 };
 

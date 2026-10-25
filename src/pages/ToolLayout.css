@@ -1,0 +1,101 @@
+/* src/pages/ToolLayout.css
+   Import AFTER ToolPage.css.
+   1) Keeps the footer at the bottom of the window on short pages
+   2) Reserves space for ads so the page doesn't jump when they load */
+
+/* ─── Sticky footer ──────────────────────────────────────────────────────── */
+/* Shell: Header / <main> / Footer. <main> grows to fill the leftover height. */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-main {
+  flex: 1 0 auto;
+  width: 100%;
+}
+
+/* ─── Tool page layout ───────────────────────────────────────────────────── */
+.tool-layout {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px 56px; /* bottom padding keeps ads and content clear of the footer */
+}
+
+/* Wide screens: tool column + 300px ad rail */
+.tool-layout--rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 32px;
+  align-items: start;
+}
+
+.tool-layout__main {
+  min-width: 0;
+}
+
+/* The layout supplies the side gutters, so the tool card doesn't need its own */
+.tool-layout .tool-page {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.tool-layout__rail {
+  position: sticky;
+  top: calc(
+    var(--header-h, 0px) + 24px
+  ); /* set --header-h if your header is sticky */
+  padding-top: 48px;
+}
+
+/* ─── Ad slots ───────────────────────────────────────────────────────────── */
+.ad-slot {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-align: center;
+}
+
+.ad-slot__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Reserved heights stop the layout from shifting when an ad arrives */
+.ad-slot--top {
+  min-height: 112px;
+  margin-top: 24px;
+} /* 90px banner + label */
+.ad-slot--bottom {
+  min-height: 290px;
+  margin-top: 40px;
+} /* 250px rectangle, kept well away from the Download button */
+.ad-slot--rail {
+  min-height: 620px;
+} /* 600px half-page */
+
+/* If no ad fills (ad blocker, no inventory), give the space back */
+.ad-slot:has(ins[data-ad-status="unfilled"]) {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .tool-layout {
+    padding: 0 16px 40px;
+  }
+  .ad-slot--top {
+    min-height: 112px;
+    margin-top: 16px;
+  }
+  .ad-slot--bottom {
+    min-height: 290px;
+    margin-top: 32px;
+  }
+}
