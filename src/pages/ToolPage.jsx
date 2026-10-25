@@ -1,10 +1,12 @@
 // src/pages/ToolPage.jsx
-import React, { useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import toolsConfig from '../data/toolsConfig';
-import './ToolPage.css'
+import React, { useState, useRef, useEffect } from "react";
+import { useParams, Link } from "react-router-dom";
+import { getAuth } from "firebase/auth";
+import toolsConfig from "../data/toolsConfig";
+import "./ToolPage.css";
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://videolid-api.vidolid.workers.dev';
+const API_BASE =
+  import.meta.env.VITE_API_BASE || "https://videolid-api.vidolid.workers.dev";
 
 const ToolPage = () => {
   const { toolSlug } = useParams();
@@ -13,133 +15,172 @@ const ToolPage = () => {
   if (!config) return <NotFound />;
   if (config.isIndex) return <ToolsIndex />;
 
-  return config.isRecorder
-    ? <RecorderPage config={config} toolSlug={toolSlug} />
-    : config.isTextInput
-    ? <TextInputPage config={config} toolSlug={toolSlug} />
-    : <UploadPage config={config} toolSlug={toolSlug} />;
+  return config.isRecorder ? (
+    <RecorderPage config={config} toolSlug={toolSlug} />
+  ) : config.isTextInput ? (
+    <TextInputPage config={config} toolSlug={toolSlug} />
+  ) : (
+    <UploadPage config={config} toolSlug={toolSlug} />
+  );
 };
 
-// ─── Upload-based Tool Page ───────────────────────────────────────────────────
-const UploadPage = ({ config, toolSlug }) => {
-  const [files, setFiles]         = useState([]);
-  const [options, setOptions]     = useState(buildDefaultOptions(config.options));
-  const [status, setStatus]       = useState('idle'); // idle | uploading | processing | done | error
-  const [progress, setProgress]   = useState(0);
-  const [resultUrl, setResultUrl] = useState(null);
-  const [errorMsg, setErrorMsg]   = useState('');
-  const [jobId, setJobId]         = useState(null);
-  const fileInputRef              = useRef();
+// ─── API helpers (shared by all three tool pages) ─────────────────────────────
 
-  const handleFileChange = (e) => {
-    const selected = Array.from(e.target.files);
-    setFiles(selected);
-    setStatus('idle');
+// Sends the Firebase token when someone is signed in, so the Worker applies their plan.
+// Signed-out visitors get no header and are treated as the free tier.
+const authHeaders = async () => {
+  try {
+    const user = getAuth().currentUser;
+    return user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {};
+  } catch {
+    return {};
+  }
+};
+
+// File names can contain spaces, %, # etc., so encode each path segment
+const downloadUrl = (fileId) =>
+  `${API_BASE}/api/download/${fileId.split("/").map(encodeURIComponent).join("/")}`;
+
+// Starts a job, polls until it finishes, and returns the download URL.
+// `init` is the fetch init for POST /api/process (FormData or JSON body).
+const runJob = async (init, onProgress) => {
+  const res = await fetch(`${API_BASE}/api/process`, {
+    ...init,
+    headers: { ...(await authHeaders()), ...init.headers },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Processing failed");
+  }
+
+  const { jobId } = await res.json();
+  onProgress?.(50);
+
+  let failedPolls = 0;
+  for (let i = 0; i < 60; i++) {
+    await sleep(2000);
+    let data;
+    try {
+      data = await (await fetch(`${API_BASE}/api/status/${jobId}`)).json();
+      failedPolls = 0;
+    } catch {
+      // Tolerate a dropped request or two before giving up
+      if (++failedPolls >= 3)
+        throw new Error("Lost connection. Please try again.");
+      continue;
+    }
+    if (data.status === "done") {
+      onProgress?.(100);
+      return downloadUrl(data.fileId);
+    }
+    if (data.status === "error")
+      throw new Error(data.error || "Processing failed");
+    onProgress?.(50 + Math.min(40, i * 2));
+  }
+  throw new Error("Processing timed out. Please try again.");
+};
+
+const PageHeader = ({ config }) => (
+  <div className="tool-page__header">
+    <span className="tool-page__icon">{config.icon}</span>
+    <div>
+      <h1 className="tool-page__title">{config.title}</h1>
+      <p className="tool-page__description">{config.description}</p>
+    </div>
+  </div>
+);
+
+// ─── Upload-based Tool Page ───────────────────────────────────────────────────
+// Optional config.extraFile = { label: 'Audio file', accept: '.mp3,.wav' } adds a second picker
+// for tools that need a different kind of file next to the main one (audio, overlay image, subtitles).
+const UploadPage = ({ config, toolSlug }) => {
+  const [files, setFiles] = useState([]);
+  const [extra, setExtra] = useState(null);
+  const [options, setOptions] = useState(buildDefaultOptions(config.options));
+  const [status, setStatus] = useState("idle"); // idle | uploading | processing | done | error
+  const [progress, setProgress] = useState(0);
+  const [resultUrl, setResultUrl] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const fileInputRef = useRef();
+  const extraInputRef = useRef();
+
+  const pickFiles = (list) => {
+    const picked = Array.from(list);
+    setFiles(config.multipleFiles ? picked : picked.slice(0, 1));
+    setStatus("idle");
     setResultUrl(null);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    const dropped = Array.from(e.dataTransfer.files);
-    setFiles(dropped);
-    setStatus('idle');
+    pickFiles(e.dataTransfer.files);
+  };
+
+  const reset = () => {
+    setFiles([]);
+    setExtra(null);
+    setStatus("idle");
     setResultUrl(null);
   };
 
-  const handleOptionChange = (id, value) => {
-    setOptions(prev => ({ ...prev, [id]: value }));
-  };
+  const ready = files.length > 0 && (!config.extraFile || extra);
 
   const handleProcess = async () => {
-    if (!files.length) return;
-    setStatus('uploading');
+    if (!ready) return;
+    setStatus("uploading");
     setProgress(10);
-    setErrorMsg('');
+    setErrorMsg("");
 
     try {
+      // Order matters: the Worker treats the first file as the main one
       const formData = new FormData();
-      files.forEach((f, i) => formData.append(i === 0 ? 'file' : `file_${i}`, f));
-      formData.append('tool', toolSlug);
-      formData.append('options', JSON.stringify(options));
-      if (config.fixedOutput) formData.append('outputFormat', config.fixedOutput);
+      [...files, ...(extra ? [extra] : [])].forEach((f, i) =>
+        formData.append(i === 0 ? "file" : `file_${i}`, f),
+      );
+      formData.append("tool", toolSlug);
+      formData.append("options", JSON.stringify(options));
+      if (config.fixedOutput)
+        formData.append("outputFormat", config.fixedOutput);
 
       setProgress(30);
-      const res = await fetch(`${API_BASE}/api/process`, {
-        method: 'POST',
-        body: formData,
+      const url = await runJob({ method: "POST", body: formData }, (p) => {
+        setProgress(p);
+        setStatus((s) => (s === "uploading" ? "processing" : s));
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Processing failed');
-      }
-
-      const data = await res.json();
-      setJobId(data.jobId);
-      setStatus('processing');
-      setProgress(50);
-
-      // Poll for job completion
-      await pollJobStatus(data.jobId, setProgress, setStatus, setResultUrl);
-
+      setResultUrl(url);
+      setStatus("done");
     } catch (err) {
-      setStatus('error');
-      setErrorMsg(err.message || 'Something went wrong. Please try again.');
+      setStatus("error");
+      setErrorMsg(err.message || "Something went wrong. Please try again.");
     }
-  };
-
-  const pollJobStatus = async (id, setProgress, setStatus, setResultUrl) => {
-    const maxAttempts = 60;
-    let attempts = 0;
-    while (attempts < maxAttempts) {
-      await sleep(2000);
-      try {
-        const res = await fetch(`${API_BASE}/api/status/${id}`);
-        const data = await res.json();
-        if (data.status === 'done') {
-          setProgress(100);
-          setStatus('done');
-          setResultUrl(`${API_BASE}/api/download/${data.fileId}`);
-          return;
-        }
-        if (data.status === 'error') {
-          throw new Error(data.error || 'Processing failed');
-        }
-        setProgress(50 + Math.min(40, attempts * 2));
-      } catch (e) {
-        throw e;
-      }
-      attempts++;
-    }
-    throw new Error('Processing timed out. Please try again.');
   };
 
   return (
     <div className="tool-page">
-      <div className="tool-page__header">
-        <span className="tool-page__icon">{config.icon}</span>
-        <div>
-          <h1 className="tool-page__title">{config.title}</h1>
-          <p className="tool-page__description">{config.description}</p>
-        </div>
-      </div>
+      <PageHeader config={config} />
 
       <div className="tool-page__body">
         {/* Upload Area */}
-        {status === 'idle' || status === 'error' ? (
+        {status === "idle" || status === "error" ? (
           <div
             className="tool-upload-zone"
+            role="button"
+            tabIndex={0}
             onDrop={handleDrop}
-            onDragOver={e => e.preventDefault()}
+            onDragOver={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) =>
+              (e.key === "Enter" || e.key === " ") &&
+              fileInputRef.current?.click()
+            }
           >
             <input
               ref={fileInputRef}
               type="file"
               accept={config.acceptedFormats}
               multiple={config.multipleFiles}
-              onChange={handleFileChange}
-              style={{ display: 'none' }}
+              onChange={(e) => pickFiles(e.target.files)}
+              style={{ display: "none" }}
             />
             {files.length ? (
               <div className="tool-upload-zone__files">
@@ -157,42 +198,74 @@ const UploadPage = ({ config, toolSlug }) => {
               <div className="tool-upload-zone__placeholder">
                 <span className="tool-upload-zone__icon">☁️</span>
                 <p className="tool-upload-zone__text">
-                  {config.multipleFiles ? 'Drop files here or click to upload' : 'Drop your file here or click to upload'}
+                  {config.multipleFiles
+                    ? "Drop files here or click to upload"
+                    : "Drop your file here or click to upload"}
                 </p>
                 <p className="tool-upload-zone__hint">
-                  Accepts: {config.acceptedFormats?.replace(/,/g, ', ')}
+                  Accepts: {config.acceptedFormats?.replace(/,/g, ", ")}
                 </p>
               </div>
             )}
           </div>
         ) : null}
 
-        {/* Options */}
-        {files.length > 0 && config.options?.length > 0 && status === 'idle' && (
-          <div className="tool-options">
-            <h3 className="tool-options__title">Options</h3>
-            <div className="tool-options__grid">
-              {config.options.map(opt => (
-                <OptionControl
-                  key={opt.id}
-                  option={opt}
-                  value={options[opt.id]}
-                  onChange={val => handleOptionChange(opt.id, val)}
-                />
-              ))}
-            </div>
-          </div>
+        {/* Second file picker (audio track, overlay image, subtitles...) */}
+        {config.extraFile && files.length > 0 && status === "idle" && (
+          <>
+            <input
+              ref={extraInputRef}
+              type="file"
+              accept={config.extraFile.accept}
+              onChange={(e) => setExtra(e.target.files[0] || null)}
+              style={{ display: "none" }}
+            />
+            <button
+              type="button"
+              className="tool-btn tool-btn--secondary"
+              onClick={() => extraInputRef.current?.click()}
+            >
+              {extra
+                ? `${config.extraFile.label}: ${extra.name}`
+                : `➕ Choose ${config.extraFile.label}`}
+            </button>
+          </>
         )}
 
+        {/* Options */}
+        {files.length > 0 &&
+          config.options?.length > 0 &&
+          status === "idle" && (
+            <div className="tool-options">
+              <h3 className="tool-options__title">Options</h3>
+              <div className="tool-options__grid">
+                {config.options.map((opt) => (
+                  <OptionControl
+                    key={opt.id}
+                    option={opt}
+                    value={options[opt.id]}
+                    onChange={(val) =>
+                      setOptions((prev) => ({ ...prev, [opt.id]: val }))
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
         {/* Process Button */}
-        {files.length > 0 && status === 'idle' && (
-          <button className="tool-btn tool-btn--primary" onClick={handleProcess}>
+        {files.length > 0 && status === "idle" && (
+          <button
+            className="tool-btn tool-btn--primary"
+            onClick={handleProcess}
+            disabled={!ready}
+          >
             {config.icon} {config.title}
           </button>
         )}
 
         {/* Progress */}
-        {(status === 'uploading' || status === 'processing') && (
+        {(status === "uploading" || status === "processing") && (
           <div className="tool-progress">
             <div className="tool-progress__bar">
               <div
@@ -201,40 +274,35 @@ const UploadPage = ({ config, toolSlug }) => {
               />
             </div>
             <p className="tool-progress__label">
-              {status === 'uploading' ? 'Uploading...' : `Processing... ${progress}%`}
+              {status === "uploading"
+                ? "Uploading..."
+                : `Processing... ${progress}%`}
             </p>
           </div>
         )}
 
         {/* Result */}
-        {status === 'done' && resultUrl && (
+        {status === "done" && resultUrl && (
           <div className="tool-result">
             <span className="tool-result__icon">✅</span>
             <p className="tool-result__title">Done! Your file is ready.</p>
-            <a
-              href={resultUrl}
-              download
-              className="tool-btn tool-btn--success"
-            >
+            <a href={resultUrl} download className="tool-btn tool-btn--success">
               ⬇️ Download
             </a>
-            <button
-              className="tool-btn tool-btn--secondary"
-              onClick={() => { setFiles([]); setStatus('idle'); setResultUrl(null); }}
-            >
+            <button className="tool-btn tool-btn--secondary" onClick={reset}>
               Process Another File
             </button>
           </div>
         )}
 
         {/* Error */}
-        {status === 'error' && (
+        {status === "error" && (
           <div className="tool-error">
             <span>❌</span>
             <p>{errorMsg}</p>
             <button
               className="tool-btn tool-btn--secondary"
-              onClick={() => setStatus('idle')}
+              onClick={() => setStatus("idle")}
             >
               Try Again
             </button>
@@ -247,80 +315,101 @@ const UploadPage = ({ config, toolSlug }) => {
 
 // ─── Text Input Tool Page (e.g. Text to Speech) ───────────────────────────────
 const TextInputPage = ({ config, toolSlug }) => {
-  const [text, setText]           = useState('');
-  const [options, setOptions]     = useState(buildDefaultOptions(config.options));
-  const [status, setStatus]       = useState('idle');
+  const [text, setText] = useState("");
+  const [options, setOptions] = useState(buildDefaultOptions(config.options));
+  const [status, setStatus] = useState("idle");
   const [resultUrl, setResultUrl] = useState(null);
-  const [errorMsg, setErrorMsg]   = useState('');
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleProcess = async () => {
     if (!text.trim()) return;
-    setStatus('processing');
-    setErrorMsg('');
+    setStatus("processing");
+    setErrorMsg("");
     try {
-      const res = await fetch(`${API_BASE}/api/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // The Worker answers with a job id, so this must poll just like the upload tools
+      const url = await runJob({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool: toolSlug, text, options }),
       });
-      if (!res.ok) throw new Error('Processing failed');
-      const data = await res.json();
-      setResultUrl(`${API_BASE}/api/download/${data.fileId}`);
-      setStatus('done');
+      setResultUrl(url);
+      setStatus("done");
     } catch (err) {
-      setStatus('error');
-      setErrorMsg(err.message);
+      setStatus("error");
+      setErrorMsg(err.message || "Something went wrong. Please try again.");
     }
   };
 
   return (
     <div className="tool-page">
-      <div className="tool-page__header">
-        <span className="tool-page__icon">{config.icon}</span>
-        <div>
-          <h1 className="tool-page__title">{config.title}</h1>
-          <p className="tool-page__description">{config.description}</p>
-        </div>
-      </div>
+      <PageHeader config={config} />
       <div className="tool-page__body">
         <textarea
           className="tool-textarea"
           placeholder="Type or paste your text here..."
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value)}
           rows={8}
+          maxLength={config.maxChars || 4096}
         />
         {config.options?.length > 0 && (
           <div className="tool-options">
             <h3 className="tool-options__title">Options</h3>
             <div className="tool-options__grid">
-              {config.options.map(opt => (
+              {config.options.map((opt) => (
                 <OptionControl
                   key={opt.id}
                   option={opt}
                   value={options[opt.id]}
-                  onChange={val => setOptions(prev => ({ ...prev, [opt.id]: val }))}
+                  onChange={(val) =>
+                    setOptions((prev) => ({ ...prev, [opt.id]: val }))
+                  }
                 />
               ))}
             </div>
           </div>
         )}
-        {status === 'idle' && (
-          <button className="tool-btn tool-btn--primary" onClick={handleProcess} disabled={!text.trim()}>
-            {config.icon} Convert to Speech
+        {status === "idle" && (
+          <button
+            className="tool-btn tool-btn--primary"
+            onClick={handleProcess}
+            disabled={!text.trim()}
+          >
+            {config.icon} {config.buttonLabel || "Convert to Speech"}
           </button>
         )}
-        {status === 'processing' && <p className="tool-progress__label">Processing...</p>}
-        {status === 'done' && resultUrl && (
+        {status === "processing" && (
+          <p className="tool-progress__label">Processing...</p>
+        )}
+        {status === "done" && resultUrl && (
           <div className="tool-result">
             <p className="tool-result__title">✅ Done!</p>
-            <a href={resultUrl} download className="tool-btn tool-btn--success">⬇️ Download Audio</a>
-            <button className="tool-btn tool-btn--secondary" onClick={() => { setText(''); setStatus('idle'); setResultUrl(null); }}>
+            <a href={resultUrl} download className="tool-btn tool-btn--success">
+              ⬇️ Download Audio
+            </a>
+            <button
+              className="tool-btn tool-btn--secondary"
+              onClick={() => {
+                setText("");
+                setStatus("idle");
+                setResultUrl(null);
+              }}
+            >
               Start Over
             </button>
           </div>
         )}
-        {status === 'error' && <p className="tool-error">{errorMsg}</p>}
+        {status === "error" && (
+          <div className="tool-error">
+            <p>{errorMsg}</p>
+            <button
+              className="tool-btn tool-btn--secondary"
+              onClick={() => setStatus("idle")}
+            >
+              Try Again
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -328,109 +417,150 @@ const TextInputPage = ({ config, toolSlug }) => {
 
 // ─── Recorder Tool Page ───────────────────────────────────────────────────────
 const RecorderPage = ({ config, toolSlug }) => {
-  const [recording, setRecording]   = useState(false);
-  const [mediaURL, setMediaURL]     = useState(null);
-  const [status, setStatus]         = useState('idle');
-  const [uploadStatus, setUploadStatus] = useState('idle');
-  const [resultUrl, setResultUrl]   = useState(null);
-  const mediaRecorderRef            = useRef(null);
-  const chunksRef                   = useRef([]);
+  const [recording, setRecording] = useState(false);
+  const [mediaURL, setMediaURL] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState("idle");
+  const [resultUrl, setResultUrl] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const recordingRef = useRef({ blob: null, ext: "webm" });
 
   const startRecording = async () => {
     chunksRef.current = [];
     try {
       let stream;
-      if (toolSlug === 'screen-recorder' || toolSlug === 'presentation-recorder') {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      } else if (toolSlug === 'webcam-recorder') {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      if (
+        toolSlug === "screen-recorder" ||
+        toolSlug === "presentation-recorder"
+      ) {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+      } else if (toolSlug === "webcam-recorder") {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
       } else {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
+      recorder.ondataavailable = (e) => {
+        if (e.data.size) chunksRef.current.push(e.data);
+      };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        // Use the type the browser really recorded (Safari makes MP4, others WebM)
+        const mime = (recorder.mimeType || "video/webm").split(";")[0];
+        const blob = new Blob(chunksRef.current, { type: mime });
+        recordingRef.current = {
+          blob,
+          ext: mime.includes("mp4") ? "mp4" : "webm",
+        };
         setMediaURL(URL.createObjectURL(blob));
-        stream.getTracks().forEach(t => t.stop());
+        stream.getTracks().forEach((t) => t.stop());
+        // Also runs when the user ends screen sharing from the browser's own "Stop sharing" button
+        setRecording(false);
       };
       recorder.start();
       setRecording(true);
-      setStatus('recording');
     } catch (err) {
-      alert('Could not access device: ' + err.message);
+      alert("Could not access device: " + err.message);
     }
   };
 
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
-    setRecording(false);
-    setStatus('idle');
+  };
+
+  const recordAgain = () => {
+    if (mediaURL) URL.revokeObjectURL(mediaURL);
+    setMediaURL(null);
+    setResultUrl(null);
+    setUploadStatus("idle");
   };
 
   const uploadRecording = async () => {
-    if (!mediaURL) return;
-    setUploadStatus('uploading');
-    const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+    const { blob, ext } = recordingRef.current;
+    if (!blob) return;
+    setUploadStatus("uploading");
+    setErrorMsg("");
     const formData = new FormData();
-    formData.append('file', blob, 'recording.webm');
-    formData.append('tool', toolSlug);
-    formData.append('options', JSON.stringify({}));
+    formData.append("file", blob, `recording.${ext}`);
+    formData.append("tool", toolSlug);
+    formData.append("options", JSON.stringify({}));
     try {
-      const res = await fetch(`${API_BASE}/api/process`, { method: 'POST', body: formData });
-      const data = await res.json();
-      setResultUrl(`${API_BASE}/api/download/${data.fileId}`);
-      setUploadStatus('done');
+      setResultUrl(await runJob({ method: "POST", body: formData }));
+      setUploadStatus("done");
     } catch (err) {
-      setUploadStatus('error');
+      setUploadStatus("error");
+      setErrorMsg(err.message || "Upload failed. Please try again.");
     }
   };
 
   return (
     <div className="tool-page">
-      <div className="tool-page__header">
-        <span className="tool-page__icon">{config.icon}</span>
-        <div>
-          <h1 className="tool-page__title">{config.title}</h1>
-          <p className="tool-page__description">{config.description}</p>
-        </div>
-      </div>
+      <PageHeader config={config} />
       <div className="tool-page__body">
         {!recording && !mediaURL && (
-          <button className="tool-btn tool-btn--primary tool-btn--large" onClick={startRecording}>
+          <button
+            className="tool-btn tool-btn--primary tool-btn--large"
+            onClick={startRecording}
+          >
             🔴 Start Recording
           </button>
         )}
         {recording && (
-          <button className="tool-btn tool-btn--danger tool-btn--large" onClick={stopRecording}>
+          <button
+            className="tool-btn tool-btn--danger tool-btn--large"
+            onClick={stopRecording}
+          >
             ⏹ Stop Recording
           </button>
         )}
-        {mediaURL && (
+        {mediaURL && !recording && (
           <div className="tool-recorder__preview">
-            {toolSlug === 'audio-recorder'
-              ? <audio src={mediaURL} controls className="tool-recorder__audio" />
-              : <video src={mediaURL} controls className="tool-recorder__video" />
-            }
+            {toolSlug === "audio-recorder" ? (
+              <audio src={mediaURL} controls className="tool-recorder__audio" />
+            ) : (
+              <video src={mediaURL} controls className="tool-recorder__video" />
+            )}
             <div className="tool-recorder__actions">
-              <a href={mediaURL} download="recording.webm" className="tool-btn tool-btn--success">
+              <a
+                href={mediaURL}
+                download={`recording.${recordingRef.current.ext}`}
+                className="tool-btn tool-btn--success"
+              >
                 ⬇️ Download Recording
               </a>
-              <button className="tool-btn tool-btn--primary" onClick={uploadRecording}>
+              <button
+                className="tool-btn tool-btn--primary"
+                onClick={uploadRecording}
+                disabled={uploadStatus === "uploading"}
+              >
                 ☁️ Save & Process
               </button>
-              <button className="tool-btn tool-btn--secondary" onClick={() => { setMediaURL(null); setUploadStatus('idle'); }}>
+              <button
+                className="tool-btn tool-btn--secondary"
+                onClick={recordAgain}
+              >
                 🔄 Record Again
               </button>
             </div>
           </div>
         )}
-        {uploadStatus === 'uploading' && <p className="tool-progress__label">Uploading...</p>}
-        {uploadStatus === 'done' && resultUrl && (
+        {uploadStatus === "uploading" && (
+          <p className="tool-progress__label">Uploading and processing...</p>
+        )}
+        {uploadStatus === "error" && <p className="tool-error">{errorMsg}</p>}
+        {uploadStatus === "done" && resultUrl && (
           <div className="tool-result">
             <p className="tool-result__title">✅ Saved!</p>
-            <a href={resultUrl} download className="tool-btn tool-btn--success">⬇️ Download Processed File</a>
+            <a href={resultUrl} download className="tool-btn tool-btn--success">
+              ⬇️ Download Processed File
+            </a>
           </div>
         )}
       </div>
@@ -438,18 +568,43 @@ const RecorderPage = ({ config, toolSlug }) => {
   );
 };
 
+// ─── Google AdSense unit ──────────────────────────────────────────────────────
+// Needs the AdSense <script> in index.html. The ad slot only fills once adsbygoogle.push() runs.
+const AdUnit = ({ slot }) => {
+  useEffect(() => {
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch {
+      /* ad blocker or already initialised */
+    }
+  }, []);
+
+  return (
+    <ins
+      className="adsbygoogle"
+      style={{ display: "block" }}
+      data-ad-client="ca-pub-3836811743595012"
+      data-ad-slot={slot}
+      data-ad-format="auto"
+      data-full-width-responsive="true"
+    />
+  );
+};
+
 // ─── All Tools Index ──────────────────────────────────────────────────────────
 const ToolsIndex = () => {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const allTools = Object.entries(toolsConfig).filter(([, c]) => !c.isIndex);
-  const filtered = allTools.filter(([slug, c]) =>
-    c.title.toLowerCase().includes(search.toLowerCase()) ||
-    c.description?.toLowerCase().includes(search.toLowerCase())
+  const q = search.toLowerCase();
+  const filtered = allTools.filter(
+    ([, c]) =>
+      c.title.toLowerCase().includes(q) ||
+      c.description?.toLowerCase().includes(q),
   );
 
   // Group by category
   const grouped = filtered.reduce((acc, [slug, config]) => {
-    const cat = config.category || 'Other';
+    const cat = config.category || "Other";
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push({ slug, ...config });
     return acc;
@@ -464,8 +619,9 @@ const ToolsIndex = () => {
           className="tools-index__search"
           type="search"
           placeholder="Search tools..."
+          aria-label="Search tools"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
         />
       </div>
       {Object.entries(grouped).map(([category, items]) => (
@@ -482,13 +638,8 @@ const ToolsIndex = () => {
           </div>
         </div>
       ))}
-    
-<ins class="adsbygoogle"
-     style="display:block"
-     data-ad-client="ca-pub-3836811743595012"
-     data-ad-slot="2404764141"
-     data-ad-format="auto"
-     data-full-width-responsive="true"></ins>
+
+      <AdUnit slot="2404764141" />
     </div>
   );
 };
@@ -496,48 +647,92 @@ const ToolsIndex = () => {
 // ─── Option Control ───────────────────────────────────────────────────────────
 const OptionControl = ({ option, value, onChange }) => {
   switch (option.type) {
-    case 'range':
+    case "range":
       return (
         <label className="tool-option">
-          <span className="tool-option__label">{option.label}: <strong>{value}{option.unit || ''}</strong></span>
-          <input type="range" min={option.min} max={option.max} value={value} onChange={e => onChange(Number(e.target.value))} className="tool-option__range" />
+          <span className="tool-option__label">
+            {option.label}:{" "}
+            <strong>
+              {value}
+              {option.unit || ""}
+            </strong>
+          </span>
+          <input
+            type="range"
+            min={option.min}
+            max={option.max}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="tool-option__range"
+          />
         </label>
       );
-    case 'select':
+    case "select":
       return (
         <label className="tool-option">
           <span className="tool-option__label">{option.label}</span>
-          <select value={value} onChange={e => onChange(e.target.value)} className="tool-option__select">
-            {option.options.map(o => <option key={o} value={o}>{o}</option>)}
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="tool-option__select"
+          >
+            {option.options.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
           </select>
         </label>
       );
-    case 'checkbox':
+    case "checkbox":
       return (
         <label className="tool-option tool-option--checkbox">
-          <input type="checkbox" checked={value} onChange={e => onChange(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={!!value}
+            onChange={(e) => onChange(e.target.checked)}
+          />
           <span className="tool-option__label">{option.label}</span>
         </label>
       );
-    case 'color':
+    case "color":
       return (
         <label className="tool-option">
           <span className="tool-option__label">{option.label}</span>
-          <input type="color" value={value} onChange={e => onChange(e.target.value)} className="tool-option__color" />
+          <input
+            type="color"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="tool-option__color"
+          />
         </label>
       );
-    case 'number':
+    case "number":
       return (
         <label className="tool-option">
           <span className="tool-option__label">{option.label}</span>
-          <input type="number" min={option.min} max={option.max} value={value} placeholder={option.placeholder} onChange={e => onChange(Number(e.target.value))} className="tool-option__input" />
+          <input
+            type="number"
+            min={option.min}
+            max={option.max}
+            value={value}
+            placeholder={option.placeholder}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="tool-option__input"
+          />
         </label>
       );
-    case 'text':
+    case "text":
       return (
         <label className="tool-option">
           <span className="tool-option__label">{option.label}</span>
-          <input type="text" value={value} placeholder={option.placeholder || option.default} onChange={e => onChange(e.target.value)} className="tool-option__input" />
+          <input
+            type="text"
+            value={value}
+            placeholder={option.placeholder || option.default}
+            onChange={(e) => onChange(e.target.value)}
+            className="tool-option__input"
+          />
         </label>
       );
     default:
@@ -554,9 +749,28 @@ const NotFound = () => (
 );
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const buildDefaultOptions = (options = []) =>
-  options.reduce((acc, o) => ({ ...acc, [o.id]: o.default ?? '' }), {});
+// Every control needs a real starting value, otherwise the UI shows one thing
+// (e.g. a select's first option) while the Worker receives an empty string.
+const defaultFor = (o) => {
+  if (o.default !== undefined) return o.default;
+  switch (o.type) {
+    case "select":
+      return o.options?.[0] ?? "";
+    case "checkbox":
+      return false;
+    case "range":
+    case "number":
+      return o.min ?? 0;
+    case "color":
+      return "#ffffff";
+    default:
+      return "";
+  }
+};
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const buildDefaultOptions = (options = []) =>
+  options.reduce((acc, o) => ({ ...acc, [o.id]: defaultFor(o) }), {});
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default ToolPage;
