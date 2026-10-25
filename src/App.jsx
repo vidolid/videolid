@@ -9,6 +9,8 @@ import {
 } from "react-router-dom";
 import Terms from "./pages/Terms";
 import Policy from "./pages/Policy";
+import CookiesPolicy from "./pages/CookiesPolicy";
+import RefundPolicy from "./pages/RefundPolicy";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import FeatureCards from "./components/FeatureCards";
@@ -46,6 +48,8 @@ const Shell = () => {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/terms" element={<Terms />} />
 <Route path="/privacy" element={<Policy />} />
+<Route path="/cookies-policy" element={<CookiesPolicy />} />
+<Route path="/refund-policy" element={<RefundPolicy />} />
           <Route path="/:toolSlug" element={<ToolPage />} />
           <Route path="*" element={<FourOhFour />} />
         </Routes>
